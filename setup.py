@@ -9,6 +9,7 @@ setup(name='sitra',
       packages=['sitra'],
       package_dir={'sitra': 'src'},
       install_requires=[
-        'six'
+        'six',
+        'wrapt'
       ])
     
