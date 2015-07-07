@@ -105,9 +105,14 @@ class SimpleTraceableTransformer(SimpleTransformer):
         try:
             (target, trace) = super(SimpleTraceableTransformer, self).recall(key)
             recalled = Recall(trace)
-            level = self.get_level()[-1]
-            level.dependencies.append(recalled)
-            recalled.parent = level
+            try:
+              level = self.get_level()[-1]
+              level.dependencies.append(recalled)
+              recalled.parent = level
+            except IndexError:
+              # ignore when using the eAllContent approach
+              # or indeed when there is no leveling
+              pass
             return target
         except TypeError:
             return None
@@ -118,9 +123,14 @@ class SimpleTraceableTransformer(SimpleTransformer):
         if not self.get_level():
             self.trace.append(trace)
         else:
-            level = self.get_level()[-1]
-            level.dependencies.append(trace)
-            trace.parent = level
+            try:
+            	level = self.get_level()[-1]
+            	level.dependencies.append(trace)
+            	trace.parent = level
+            except IndexError:
+              # ignore when using the eAllContent approach
+              # or indeed when there is no leveling
+              pass
         self.get_level().append(trace)
 
     def forget(self, key):
