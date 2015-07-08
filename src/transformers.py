@@ -55,7 +55,7 @@ class SimpleTransformer(Transformer):
         if dynamic:
             for rule in self.rules:
                 check = rule.check(source)
-                if check:
+                if check != False:
                     break
             else:
                 return None
@@ -124,9 +124,9 @@ class SimpleTraceableTransformer(SimpleTransformer):
             self.trace.append(trace)
         else:
             try:
-            	level = self.get_level()[-1]
-            	level.dependencies.append(trace)
-            	trace.parent = level
+                level = self.get_level()[-1]
+                level.dependencies.append(trace)
+                trace.parent = level
             except IndexError:
               # ignore when using the eAllContent approach
               # or indeed when there is no leveling
