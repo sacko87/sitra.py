@@ -62,19 +62,23 @@ class SimpleTransformer(Transformer):
         else:
             check = rule.check(source)
 
-        key = (rule, source)
-        hit = self.recall(key)
-        if hit is not None:
-            return Proxy(hit, self)
+        import types
+        if not isinstance(check, (list, types.GeneratorType)):
+            check = [check]
 
-        target = rule.build(source, self)
-        if target is not None:
-            target = Proxy(target, self)
-            self.remember(key, target)
-            rule.set_properties(target, source, self)
-            self.forget(key)
+        for match in check:
+            source = match
+            key = (rule, source)
+            hit = self.recall(key)
+            if hit is not None:
+                return Proxy(hit, self)
 
-        return target
+            target = rule.build(source, self)
+            if target is not None:
+                target = Proxy(target, self)
+                self.remember(key, target)
+                rule.set_properties(target, source, self)
+                self.forget(key)
 
     def recall(self, key):
         return self.get_cache().get(key)
