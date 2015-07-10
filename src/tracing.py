@@ -29,6 +29,9 @@ class Recall(TraceElement):
         return '{ "recalled": { "source": "%s", "transformedBy": "%s" } }' % \
             (source.__class__.__name__, type(rule).__name__)
 
+def is_primitive(value):
+    return isinstance(value, (int, str, float, complex, bool))
+
 class Proxy(ObjectProxy):
     def __init__(self, obj, tx=None):
         super().__init__(obj)
@@ -48,13 +51,9 @@ class Proxy(ObjectProxy):
         if not name.startswith("_self"):
             self.retain(value)
 
-    def is_primitive(self, value):
-        return isinstance(value, (int, str, float, complex, bool))
-
     def proxify(self, value):
-        value_type = type(value)
-        if not self.is_primitive(value_type):
-            if value_type == list and value_type != str:
+        if not is_primitive(value):
+            if isinstance(value, list) and not isinstance(value, str):
                 value = ListProxy(value, self._self_tx)
             else:
                 value = Proxy(value, self._self_tx)
@@ -62,7 +61,7 @@ class Proxy(ObjectProxy):
         return value
 
     def retain(self, value):
-        if not self.is_primitive(value):
+        if not is_primitive(value):
             if not self._self_tx.reverse(value):
                 if hasattr(self._self_tx, 'trace'):
                     self._self_tx.get_level()[-1].orphans.append(value)
@@ -84,5 +83,6 @@ class ListProxy(Proxy, MutableSequence):
     def __getitem__(self, idx):
         item = super().__getitem__(idx)
         if item is not None:
-            item = self.proxify(item)
-            return item
+            if not is_primitive(item):
+                item = self.proxify(item)
+        return item
