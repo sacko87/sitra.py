@@ -54,7 +54,7 @@ class Proxy(ObjectProxy):
     def proxify(self, value):
         value_type = type(value)
         if not self.is_primitive(value_type):
-            if value_type == list:
+            if value_type == list and value_type != str:
                 value = ListProxy(value, self._self_tx)
             else:
                 value = Proxy(value, self._self_tx)
