@@ -63,22 +63,28 @@ class SimpleTransformer(Transformer):
             check = rule.check(source)
 
         import types
-        if not isinstance(check, (list, types.GeneratorType)):
+        one_to_many = isinstance(check, (list, types.GeneratorType)) and\
+                not isinstance(check, str)
+        if not one_to_many:
             check = [check]
 
+        targets = []
         for match in check:
             source = match
             key = (rule, source)
             hit = self.recall(key)
             if hit is not None:
-                return Proxy(hit, self)
+                return hit
 
             target = rule.build(source, self)
             if target is not None:
-                target = Proxy(target, self)
                 self.remember(key, target)
                 rule.set_properties(target, source, self)
                 self.forget(key)
+                targets.append(target)
+
+        return targets if one_to_many else (targets[0] if len(targets) == 1 else None)
+                
 
     def recall(self, key):
         return self.get_cache().get(key)
