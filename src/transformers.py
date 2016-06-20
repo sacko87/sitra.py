@@ -1,6 +1,6 @@
 from abc import (ABCMeta, abstractmethod)
 from six import with_metaclass
-from sitra.tracing import (Invocation, Recall, Proxy)
+from sitra.tracing import (Invocation, Recall)
 
 class Transformer(with_metaclass(ABCMeta, object)):
     @abstractmethod
@@ -79,9 +79,11 @@ class SimpleTransformer(Transformer):
             target = rule.build(source, self)
             if target is not None:
                 self.remember(key, target)
-                rule.set_properties(target, source, self)
-                self.forget(key)
-                targets.append(target)
+                try:
+                    rule.set_properties(target, source, self)
+                    targets.append(target)
+                finally:
+                    self.forget(key)
 
         return targets if one_to_many else (targets[0] if len(targets) == 1 else None)
                 
