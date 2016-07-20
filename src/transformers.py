@@ -62,15 +62,7 @@ class SimpleTransformer(Transformer):
         else:
             check = rule.check(source)
 
-        import types
-        one_to_many = isinstance(check, (list, types.GeneratorType)) and\
-                not isinstance(check, str)
-        if not one_to_many:
-            check = [check]
-
-        targets = []
-        for match in check:
-            source = match
+        if check:
             key = (rule, source)
             hit = self.recall(key)
             if hit is not None:
@@ -81,31 +73,27 @@ class SimpleTransformer(Transformer):
                 self.remember(key, target)
                 try:
                     rule.set_properties(target, source, self)
-                    targets.append(target)
                 finally:
                     self.forget(key)
 
-        return targets if one_to_many else (targets[0] if len(targets) == 1 else None)
-                
+        return target
+
 
     def recall(self, key):
-        return self.get_cache().get(key)
+        return self.cache.get(key, None)
 
     def remember(self, key, target):
-        self.get_cache()[key] = target
+        self.cache[key] = target
 
     def forget(self, key):
         pass
 
     def reverse(self, target):
-        for (_, s), v in self.get_cache().items():
-            if target in v:
+        for (_, s), t in self.cache.items():
+            if(t == target):
                 return s
 
         return None
-
-    def get_cache(self):
-        return self.cache
 
 class SimpleTraceableTransformer(SimpleTransformer):
     def __init__(self):
@@ -114,48 +102,42 @@ class SimpleTraceableTransformer(SimpleTransformer):
         self.trace = []
 
     def recall(self, key):
-        try:
-            (target, trace) = super(SimpleTraceableTransformer, self).recall(key)
+        trace = super(SimpleTraceableTransformer, self).recall(key)
+        if trace is not None:
             recalled = Recall(trace)
             try:
-              level = self.get_level()[-1]
-              level.dependencies.append(recalled)
-              recalled.parent = level
+                level = self.level[-1]
+                level.dependencies.append(recalled)
+                recalled.parent = level
             except IndexError:
-              # ignore when using the eAllContent approach
-              # or indeed when there is no leveling
-              pass
-            return target
-        except TypeError:
-            return None
+                # ignore when using the eAllContent approach
+                # or indeed when there is no leveling
+                pass
+
+            return trace.target
+
+        return None
 
     def remember(self, key, target):
         trace = Invocation(key, target)
-        super(SimpleTraceableTransformer, self).remember(key, (target, trace))
-        if not self.get_level():
-            self.trace.append(trace)
-        else:
+        self.trace.append(trace)
+        super(SimpleTraceableTransformer, self).remember(key, trace)
+        if len(self.level) > 0:
             try:
-                level = self.get_level()[-1]
+                level = self.level[-1]
                 level.dependencies.append(trace)
                 trace.parent = level
             except IndexError:
               # ignore when using the eAllContent approach
               # or indeed when there is no leveling
               pass
-        self.get_level().append(trace)
+        self.level.append(trace)
 
     def forget(self, key):
-        self.get_level().pop()
+        self.level.pop()
 
     def reverse(self, target):
-        for (_, s), (_, t) in self.get_cache().items():
+        for (_, s), t in self.cache.items():
             if t.target == target:
                 return s
         return None
-
-    def get_trace(self):
-        return self.trace
-
-    def get_level(self):
-        return self.level
