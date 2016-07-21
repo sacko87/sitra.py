@@ -1,6 +1,6 @@
 from abc import (ABCMeta, abstractmethod)
 from six import with_metaclass
-from sitra.tracing import (Invocation, Recall)
+from sitra.tracing import (Invocation, Recall, ObjectWrapper, SequenceWrapper)
 
 class Transformer(with_metaclass(ABCMeta, object)):
     @abstractmethod
@@ -138,6 +138,36 @@ class SimpleTraceableTransformer(SimpleTransformer):
 
     def reverse(self, target):
         for (_, s), t in self.cache.items():
-            if t.target == target:
+            if target in t.targets:
                 return s
         return None
+
+class SimpleOrphanTraceableTranformer(SimpleTraceableTransformer):
+    def transform(self, source, rule=None):
+        dynamic = rule is None
+        if dynamic:
+            for rule in self.rules:
+                check = rule.check(source)
+                if check != False:
+                    break
+            else:
+                return None
+        else:
+            check = rule.check(source)
+
+        if check:
+            key = (rule, source)
+            hit = self.recall(key)
+            if hit is not None:
+                return hit
+
+            target = rule.build(source, self)
+            if target is not None:
+                target = ObjectWrapper(target, self)
+                self.remember(key, target)
+                try:
+                    rule.set_properties(target, source, self)
+                finally:
+                    self.forget(key)
+
+        return target
