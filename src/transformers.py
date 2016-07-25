@@ -142,7 +142,7 @@ class SimpleTraceableTransformer(SimpleTransformer):
                 return s
         return None
 
-class SimpleOrphanTraceableTranformer(SimpleTraceableTransformer):
+class SimpleOrphanTraceableTransformer(SimpleTraceableTransformer):
     def transform(self, source, rule=None):
         dynamic = rule is None
         if dynamic:
