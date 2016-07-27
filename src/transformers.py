@@ -51,6 +51,7 @@ class SimpleTransformer(Transformer):
         self.cache = {}
 
     def transform(self, source, rule=None):
+        target = None
         dynamic = rule is None
         if dynamic:
             for rule in self.rules:
@@ -60,6 +61,14 @@ class SimpleTransformer(Transformer):
             else:
                 return None
         else:
+            # this was added as it should really be okay to pass the
+            # definition rather than an instance
+            try:
+                if isinstance(type(rule), type):
+                    rule = next(r for r in self.rules if type(r) == rule)
+            except StopIteration:
+                raise RuntimeError(rule.__name__ + " isn't part of this transformer.")
+
             check = rule.check(source)
 
         if check:
@@ -144,6 +153,7 @@ class SimpleTraceableTransformer(SimpleTransformer):
 
 class SimpleOrphanTraceableTransformer(SimpleTraceableTransformer):
     def transform(self, source, rule=None):
+        target = None
         dynamic = rule is None
         if dynamic:
             for rule in self.rules:
@@ -153,6 +163,14 @@ class SimpleOrphanTraceableTransformer(SimpleTraceableTransformer):
             else:
                 return None
         else:
+            # this was added as it should really be okay to pass the
+            # definition rather than an instance
+            try:
+                if isinstance(type(rule), type):
+                    rule = next(r for r in self.rules if type(r) == rule)
+            except StopIteration:
+                raise RuntimeError(rule.__name__ + " isn't part of this transformer.")
+
             check = rule.check(source)
 
         if check:
