@@ -1,4 +1,5 @@
 from abc import (ABCMeta, abstractmethod)
+from collections.abc import (MutableSequence)
 from six import with_metaclass
 from sitra.tracing import (Invocation, Recall, ObjectWrapper, SequenceWrapper)
 
@@ -181,7 +182,10 @@ class SimpleOrphanTraceableTransformer(SimpleTraceableTransformer):
 
             target = rule.build(source, self)
             if target is not None:
-                target = ObjectWrapper(target, self)
+                if isinstance(target, MutableSequence):
+                    target = SequenceWrapper(target, self)
+                else:
+                    target = ObjectWrapper(target, self)
                 self.remember(key, target)
                 try:
                     rule.set_properties(target, source, self)
