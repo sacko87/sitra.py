@@ -1,12 +1,14 @@
 from abc import ABCMeta
+from collections.abc import Sequence
 from six import with_metaclass
 from wrapt import ObjectProxy
+import itertools
 
 try:
-    from collections import MutableSequence
+    from collections import MutableSequence, Sequence
 except ImportError:
     # moved in 3.3
-    from collections.abc import MutableSequence
+    from collections.abc import MutableSequence, Sequence
 
 class TraceElement(with_metaclass(ABCMeta, object)):
     def __init__(self):
@@ -22,26 +24,42 @@ class Invocation(TraceElement):
 
     @property
     def targets(self):
-        return [ self.target ] + self.orphans
+        return itertools.chain(
+            [ self.target ] if not isinstance(self.target, Sequence)
+                            else self.target,
+            self.orphans)
 
 class Recall(TraceElement):
     def __init__(self, invocation):
         self.invocation = invocation
 
 class WrapperWrapper(ObjectProxy):
+    _cache = {}
+
     def __init__(self, wrapped, tx):
         super(WrapperWrapper, self).__init__(wrapped)
-        self._self_wrapped = wrapped
         self._self_tx = tx
 
     def wrap(self, value):
+        try:
+            exclude = (int, float, long, complex, bool, str, type(None))
+        except NameError:
+            exclude = (int, float, complex, bool, str, type(None))
+
+        if id(value) in WrapperWrapper._cache:
+            return WrapperWrapper._cache[id(value)]
+
         # if it isn't already a proxy
-        if not isinstance(value, ObjectProxy):
+        if not isinstance(value, WrapperWrapper) and not isinstance(value, exclude):
             # wrap it
             if isinstance(value, MutableSequence):
+                value = MutableSequenceWrapper(value, self._self_tx)
+            elif isinstance(value, Sequence):
                 value = SequenceWrapper(value, self._self_tx)
             else:
                 value = ObjectWrapper(value, self._self_tx)
+
+            WrapperWrapper._cache[id(value)] = value
 
         return value
 
@@ -61,7 +79,7 @@ class WrapperWrapper(ObjectProxy):
         except StopIteration:
             # we haven't found it, so keep it as an orphan
             try:
-                self._self_tx.level[-1].orphans.append(value)
+                self._self_tx.stack[-1].orphans.append(value)
             except IndexError:
                 raise RuntimeError("An orphan has been created, it will not be " +
                     "tracked, as it isn't within a transformation.")
@@ -73,12 +91,12 @@ class ObjectWrapper(WrapperWrapper):
         attr = super(ObjectWrapper, self).__getattribute__(name)
 
         # so we don't override proxy values
-        if name.startswith('_self_'):
+        if name.startswith('_self_') or name == "__wrapped__":
             return attr
 
         # we only care about instance variables
         try:
-            if name in vars(self._self_wrapped):
+            if name in vars(self.__wrapped__):
                 # wrap it
                 attr = self.wrap(attr)
         except TypeError:
@@ -90,7 +108,7 @@ class ObjectWrapper(WrapperWrapper):
         # if not within the proxy and only for instance variables
         if not name.startswith('_self_'):
             try:
-                if name in vars(self._self_wrapped):
+                if name in vars(self.__wrapped__):
                     # wrap if necessary
                     value = self.wrap(value)
 
@@ -102,10 +120,25 @@ class ObjectWrapper(WrapperWrapper):
         # delegate
         return super(ObjectWrapper, self).__setattr__(name, value)
 
-class SequenceWrapper(WrapperWrapper, MutableSequence):
+class SequenceWrapper(WrapperWrapper, Sequence):
     def __getitem__(self, key):
         # get the item
-        item = self._self_wrapped[key]
+        item = self.__wrapped__[key]
+
+        # if it isn't already a proxy
+        if not isinstance(item, ObjectProxy):
+            # wrap it
+            item = self.wrap(item)
+
+        return item
+
+    def __len__(self):
+        return len(self.__wrapped__)
+
+class MutableSequenceWrapper(SequenceWrapper, MutableSequence):
+    def __getitem__(self, key):
+        # get the item
+        item = self.__wrapped__[key]
 
         # if it isn't already a proxy
         if not isinstance(item, ObjectProxy):
@@ -125,13 +158,10 @@ class SequenceWrapper(WrapperWrapper, MutableSequence):
         self.orphan(value)
 
         # delegate
-        self._self_wrapped[key] = value
+        self.__wrapped__[key] = value
 
     def __delitem__(self, key):
-        del self._self_wrapped[key]
-
-    def __len__(self):
-        return len(self._self_wrapped)
+        del self.__wrapped__[key]
 
     def insert(self, index, value):
         # wrap if necessary
@@ -141,4 +171,4 @@ class SequenceWrapper(WrapperWrapper, MutableSequence):
         self.orphan(value)
 
         # delegate
-        self._self_wrapped.insert(index, value)
+        self.__wrapped__.insert(index, value)
