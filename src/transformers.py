@@ -1,5 +1,9 @@
 from abc import (ABCMeta, abstractmethod)
-from collections.abc import (MutableSequence, Sequence)
+try:
+    from collections.abc import (MutableSequence, Sequence)
+except ImportError:
+    from collections import (MutableSequence, Sequence)
+
 from six import with_metaclass
 from sitra.tracing import (Invocation, Recall, ObjectWrapper, SequenceWrapper, MutableSequenceWrapper)
 
@@ -130,23 +134,6 @@ class SimpleTraceableTransformer(SimpleTransformer, TraceableTransformer):
         self.stack = []
         self.trace = []
 
-    def recall(self, key):
-        trace = super(SimpleTraceableTransformer, self).recall(key)
-        if trace is not None:
-            recalled = Recall(trace)
-            try:
-                stack = self.stack[-1]
-                stack.dependencies.append(recalled)
-                recalled.parent = stack
-            except IndexError:
-                # ignore when using the eAllContent approach
-                # or indeed when there is no stacking
-                pass
-
-            return trace.target
-
-        return None
-
     def begin(self, key, target):
         trace = Invocation(key, target)
         self.trace.append(trace)
@@ -172,6 +159,15 @@ class SimpleTraceableTransformer(SimpleTransformer, TraceableTransformer):
     def end(self, key):
         self.stack.pop()
 
+    def recall(self, key):
+        if self.verbose:
+            print("  checking for a previous transformation")
+
+        recalled = self.cache.get(key, None)
+        if recalled is not None:
+            recalled = recalled.target
+        return recalled
+
     def reverse(self, target):
         for key, t in self.cache.items():
             (r, s) = key
@@ -179,7 +175,26 @@ class SimpleTraceableTransformer(SimpleTransformer, TraceableTransformer):
                 return key
         return None
 
-class SimpleOrphanTraceableTransformer(SimpleTraceableTransformer):
+class SimpleNestedTraceableTransformer(SimpleTraceableTransformer):
+    def recall(self, key):
+        trace = super(SimpleTraceableTransformer, self).recall(key)
+        if trace is not None:
+            recalled = Recall(trace)
+            try:
+                stack = self.stack[-1]
+                stack.dependencies.append(recalled)
+                recalled.parent = stack
+                #self.trace.append(recalled)
+            except IndexError:
+                # ignore when using the eAllContent approach
+                # or indeed when there is no stacking
+                pass
+
+            return trace.target
+
+        return None
+
+class SimpleOrphanTraceableTransformer(SimpleNestedTraceableTransformer):
     def transform(self, source, rule=None):
         if self.verbose:
             print("transforming", source.__class__.__name__)

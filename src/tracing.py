@@ -1,14 +1,13 @@
 from abc import ABCMeta
-from collections.abc import Sequence
 from six import with_metaclass
 from wrapt import ObjectProxy
 import itertools
 
 try:
-    from collections import MutableSequence, Sequence
+    from collections import (MutableSequence, Sequence)
 except ImportError:
     # moved in 3.3
-    from collections.abc import MutableSequence, Sequence
+    from collections.abc import (MutableSequence, Sequence)
 
 class TraceElement(with_metaclass(ABCMeta, object)):
     def __init__(self):
